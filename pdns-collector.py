@@ -12,6 +12,7 @@ import lzma
 import pcapy
 from scapy.all import *
 import urllib2
+import logging
 import datetime
 import argparse
 import dns.message
@@ -42,6 +43,8 @@ pgroup_ex.add_argument('--file', '-f', type=str,
 pgroup_ex.add_argument('--post', '-p', type=str,
                     help='post json results to a url, requires -a')
 
+parser.add_argument('--identity', '-I', type=str,
+                    help='a string to uniquely identify us')
 parser.add_argument('--apikey', '-a', type=str,
                     help='apikey to use when posting json results to a url')
 parser.add_argument('--iface', '-i', type=str,
@@ -50,6 +53,8 @@ parser.add_argument('--count', '-c', type=int, default=100,
                     help='numbe of packets to collect before performing a --post (default 100)')
 args = parser.parse_args()
 
+LOG_FORMAT = '%(asctime)s - %(levelname)s - %(name)s[%(lineno)s] - %(message)s'
+logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT)
 
 def date(d):
     return datetime.datetime.fromtimestamp(d).strftime("%Y-%m-%dT%H:%M:%S")
@@ -99,7 +104,7 @@ class pcapProcessor:
         return query.lower()
 
 class scapyProcessor:
-    def __init__(self, apikey, url, count):
+    def __init__(self, identity, apikey, url, count):
         self.data = []
         self.localtz = reference.LocalTimezone()
         self.apikey = apikey
@@ -107,6 +112,7 @@ class scapyProcessor:
         self.count = count
         self.ccount = 0
         self.last_emit = time.time()
+        self.identity = identity
 
     def __call__(self, p):
         ts = time.time()
@@ -136,7 +142,9 @@ class scapyProcessor:
                         rr_set.add((TYPES[ns.type], ns.ttl, ns.rdata))
 
             ts = time.time()
-            self.data.append({'ts': ts, 
+            self.data.append({
+            		'id': self.identity,
+            		'ts': ts, 
                     'tz': self.localtz.tzname(datetime.datetime.fromtimestamp(ts)),
                     'query': query, 
                     'qtype': TYPES[qtype],
@@ -179,7 +187,7 @@ def main():
         f.close()
     elif args.post:
         if args.apikey:
-            s = scapyProcessor(args.apikey, args.post, args.count or 100)
+            s = scapyProcessor(args.identity, args.apikey, args.post, args.count or 100)
             sniff(iface=args.iface, filter="udp port 53 and ( udp[10] & 0x04 != 0 )", prn=s)
         else:
             print "--apikey required with --post"

@@ -2,19 +2,29 @@
 
 import lzma
 import sqlite3
-import tornado.escape
+import logging
+import argparse
 import tornado.web
+import tornado.escape
 from tornado.ioloop import IOLoop
 from tornado.httpserver import HTTPServer
 
 import __builtin__
 
 from sqlalchemy import create_engine
-import logging
 LOG_FORMAT = '%(asctime)s - %(levelname)s - %(name)s[%(lineno)s] - %(message)s'
 __builtin__.logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT)
 __builtin__.conn = None
 
+parser = argparse.ArgumentParser(
+    description='passive dns collector')
+
+parser.add_argument('--verbose', '-v', action='count')
+parser.add_argument('--port', '-p', type=int,
+                    help='listen on this port')
+parser.add_argument('--apikey', '-a', type=str,
+                    help='magic key needed to talk to us')
+                          
 class BaseHandler(tornado.web.RequestHandler):
     def add_headers(self, mimetype="text/json", status=200):
         self.set_header("Content-Type", mimetype)
