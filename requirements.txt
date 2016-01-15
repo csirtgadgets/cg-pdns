@@ -1,0 +1,5 @@
+scapy
+pcapy
+dnspython
+backports.lzma
+pytz
