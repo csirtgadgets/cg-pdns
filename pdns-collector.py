@@ -54,22 +54,10 @@ args = parser.parse_args()
 def date(d):
     return datetime.datetime.fromtimestamp(d).strftime("%Y-%m-%dT%H:%M:%S")
 
-def get_answers(m):
-    for a in m.answer:
-        if a.rdtype not in TYPES: continue
-        for i in a:
-            yield i.to_text().lower(), TYPES[a.rdtype], a.ttl
-
-def get_query(m):
-    try :
-        query = m.question[0].to_text().split()[0]
-    except IndexError:
-        return None
-    if query.endswith("."):
-        query = query[:-1]
-    return query.lower()
-
 class pcapProcessor:
+	"""
+	To be replaced with scapy...
+	"""
     def __init__(self):
         self.data = []
         self.localtz = reference.LocalTimezone()
@@ -81,12 +69,12 @@ class pcapProcessor:
             m = dns.message.from_wire(data[42:])
         except:
             return
-        query = get_query(m)
+        query = self.get_query(m)
         if not query:
             return
 
         ans_set = set()
-        for answer, type, ttl in get_answers(m):
+        for answer, type, ttl in self.get_answers(m):
             ans_set.add((answer, type))
 
         self.data.append({
@@ -94,6 +82,21 @@ class pcapProcessor:
                 'tz': self.localtz.tzname(datetime.datetime.fromtimestamp(ts)),
                 'query': query, 
                 'answer': list(ans_set)})
+                
+    def get_answers(self, m):
+        for a in m.answer:
+            if a.rdtype not in TYPES: continue
+            for i in a:
+                yield i.to_text().lower(), TYPES[a.rdtype], a.ttl
+
+    def get_query(self, m):
+        try :
+            query = m.question[0].to_text().split()[0]
+        except IndexError:
+            return None
+        if query.endswith("."):
+            query = query[:-1]
+        return query.lower()
 
 class scapyProcessor:
     def __init__(self, apikey, url, count):
@@ -150,23 +153,20 @@ class scapyProcessor:
                 print "emit {1}b ({2}b) {0}/s".format(self.count/(time.time()-self.last_emit), len(jc), len(j))
                 self.last_emit = time.time()
                 self.data = []
-                do_post()
+                do_post(jc)
 
 
-    def do_post():
-        base = "http://localhost:8888/api/user"
-        headers = {'Content-Type': 'application/json'}
+    def do_post(_data):
+    	"""
+    	TODO: thread so this doesn't stall the collector
+    	"""
+        base = "http://localhost:8888/pdns/post"
+        headers = {'Content-Type': 'application/json',
+                   'Content-Encoding': 'lzma'}
         
-        req = urllib2.Request("{}/{}".format(base, api), 
-                              data=json.dumps(data), headers=headers)
+        req = urllib2.Request(base, data=_data, headers=headers)
         _rsp = urllib2.urlopen(req)
-        body = _rsp.read()
-        rsp = json.loads(body)
-        #print "\tBody: ", body
-        print "\tAPI: ", api
-        print "\tResponse: ", rsp
-        assert rsp['_status'] == 200, "{}/{} failed: {}".format(base, api, rsp)
-        return rsp
+        assert rsp['_status'] == 200, "{0} failed: {1}".format(base, rsp)
 
 
 def main():
