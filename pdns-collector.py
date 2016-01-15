@@ -10,7 +10,6 @@ import time
 import json
 import lzma
 import pcapy
-from scapy.all import *
 import urllib2
 import logging
 import datetime
@@ -55,14 +54,18 @@ args = parser.parse_args()
 
 LOG_FORMAT = '%(asctime)s - %(levelname)s - %(name)s[%(lineno)s] - %(message)s'
 logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT)
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
+logger = logging.getLogger(__name__)
+
+from scapy.all import *
 
 def date(d):
     return datetime.datetime.fromtimestamp(d).strftime("%Y-%m-%dT%H:%M:%S")
 
 class pcapProcessor:
-	"""
-	To be replaced with scapy...
-	"""
+    """
+    To be replaced with scapy...
+    """
     def __init__(self):
         self.data = []
         self.localtz = reference.LocalTimezone()
@@ -143,7 +146,6 @@ class scapyProcessor:
 
             ts = time.time()
             self.data.append({
-            		'id': self.identity,
             		'ts': ts, 
                     'tz': self.localtz.tzname(datetime.datetime.fromtimestamp(ts)),
                     'query': query, 
@@ -153,28 +155,39 @@ class scapyProcessor:
             self.ccount += 1
             if self.ccount > self.count:
                 self.ccount = 0
-                j = json.dumps({'apikey': self.apikey, 'dns': self.data})
+                j = json.dumps({'apikey': self.apikey, 'dns': self.data, 'identity': self.identity})
                 lz = lzma.LZMACompressor()
                 jc = lz.compress(j)
                 jc += lz.flush()
 
-                print "emit {1}b ({2}b) {0}/s".format(self.count/(time.time()-self.last_emit), len(jc), len(j))
+                logger.info("emit {1}b ({2}b) {0}/s".format(self.count/(time.time()-self.last_emit), len(jc), len(j)))  # noqa
                 self.last_emit = time.time()
                 self.data = []
-                do_post(jc)
+                self.do_post(jc)
 
 
-    def do_post(_data):
+    def do_post(self, _data):
     	"""
     	TODO: thread so this doesn't stall the collector
     	"""
         base = "http://localhost:8888/pdns/post"
-        headers = {'Content-Type': 'application/json',
-                   'Content-Encoding': 'lzma'}
-        
-        req = urllib2.Request(base, data=_data, headers=headers)
-        _rsp = urllib2.urlopen(req)
-        assert rsp['_status'] == 200, "{0} failed: {1}".format(base, rsp)
+        headers = {'Content-Type': 'application/json'}
+
+        try:
+            req = urllib2.Request(base, data=_data, headers=headers)
+    	    _rsp = urllib2.urlopen(req, timeout=2)
+            body = _rsp.read()
+            rsp = json.loads(body)
+            assert rsp['_status'] == 'OK', "{0} failed: {1}".format(base, rsp['_message'])
+
+        except urllib2.HTTPError as e:
+            logger.error("Server said {0}. Discarding this batch of records.".format(e))
+
+        except ValueError:
+            logger.error("Server returned something other than JSON, maybe nothing at all.")
+
+        except AssertionError:
+            logger.error("Server denied us.")
 
 
 def main():

@@ -1,5 +1,11 @@
+# collector
 scapy
 pcapy
 dnspython
 backports.lzma
 pytz
+
+# archiver
+SQLAlchemy
+sqlalchemy_utils
+tornado

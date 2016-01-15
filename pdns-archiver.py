@@ -1,93 +1,121 @@
 #!/usr/bin/env python
 
+__version__ = "1.0.0"
+
 import lzma
-import sqlite3
+import json
 import logging
 import argparse
 import tornado.web
 import tornado.escape
-from tornado.ioloop import IOLoop
-from tornado.httpserver import HTTPServer
+import tornado.httpserver
 
-import __builtin__
+from models.models import queries, answers, attach
+import models.sqlite_loghandler
 
-from sqlalchemy import create_engine
 LOG_FORMAT = '%(asctime)s - %(levelname)s - %(name)s[%(lineno)s] - %(message)s'
-__builtin__.logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT)
-__builtin__.conn = None
+logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT)
+logger = logging.getLogger(__name__)
+conn = None
 
 parser = argparse.ArgumentParser(
     description='passive dns collector')
 
 parser.add_argument('--verbose', '-v', action='count')
-parser.add_argument('--port', '-p', type=int,
+parser.add_argument('--port', '-p', type=int, default=8888,
                     help='listen on this port')
-parser.add_argument('--apikey', '-a', type=str,
+parser.add_argument('--apikey', '-a', type=str, required=True,
                     help='magic key needed to talk to us')
-                          
+parser.add_argument('--db', '-d', type=str,
+                    default="sqlite:////data/pdns.db",
+                    help='db connect string, default sqlite:////data/pdns.db')
+args = parser.parse_args()
+
+
 class BaseHandler(tornado.web.RequestHandler):
     def add_headers(self, mimetype="text/json", status=200):
         self.set_header("Content-Type", mimetype)
         self.set_header("Access-Control-Allow-Origin", "''")
         self.set_status(status)
-    
+
     def nok(self, msg=''):
-        return { '_status': 'NOK', '_message': msg }
-    
+        return {'_status': 'NOK', '_message': msg}
+
     def ok(self, msg=''):
-        return { '_status': 'OK', '_message': msg }
-        
+        return {'_status': 'OK', '_message': msg}
+
+
 class VersionHandler(BaseHandler):
     def get(self):
         response = self.ok()
-        response.update( { 'version': '1.0.0' } )
+        response.update({'version': __version__})
         self.add_headers()
         self.write(response)
 
-class Incoming(BaseHandler):
-	def get(self):
-		self.add_headers(status=404)
-		self.write(self.nok("go away"))
 
-	def post(self):
-		response = self.ok()
-		data = self.request.body
-		try:
-			lz = lzma.LZMADecompressor()
-			jd = lz.decompress(data)
-			j = json.loads(jd)
-			print j
-		
+class Incoming(BaseHandler):
+    def get(self):
+        self.add_headers(status=404)
+        self.write(self.nok("go away"))
+
+    def post(self):
+        response = self.ok()
+        data = self.request.body
+        try:
+            lz = lzma.LZMADecompressor()
+            jd = lz.decompress(data)
+            j = json.loads(jd)
+            logger.info("Got post with len {0} uncompressed {1}".format(len(data), len(jd)))
+            assert 'apikey' in j and j['apikey'] == args.apikey, "not authorized"
+
+            dns = j['dns']
+            Q = queries(collector = j['identity'], tz = dns['tz'], qname = dns['query'], qtype = dns['qtype'])  # noqa
+            conn.add(Q)
+            conn.commit()
+            conn.refresh(Q)
+            
+            for ans_type, ans_ttl, ans_str in dns['answers']:
+                A = answers(atype = ans_type, ttl = ans_ttl, answer = ans_str, query = Q)
+                conn.add(A)
+
+        except AssertionError as e:
+            logger.error("invalid (or no) apikey")
+            response = self.nok("{0}".format(e))
+
+        except Exception as e:
+            logger.error("hmm {0}".format(e))
+            print e
+            response = self.nok("post failed")
+        self.add_headers()
+        self.write(response)
+
+
 def make_app():
-	settings = {}
-	application = tornado.web.Application([
+    settings = {}
+    application = tornado.web.Application([
         (r"/pdns/version", VersionHandler),
         (r"/pdns/post", Incoming),
         ], **settings)
     return application
 
+
 def main():
     app = make_app()
-    http_server = tornado.httpserver.HTTPServer(app,
-    #    ssl_options={
-    #        "certfile": os.path.join(data_dir, "server.crt"),
-    #        "keyfile": os.path.join(data_dir, "server.key"),
-    #    }
-    )
     logger.info("Connect to DB")
+    conn = attach(args.db)
+    if conn is not None:
+        loghandler = models.sqlite_loghandler.SQLiteHandler(conn)
+        logger.addHandler(loghandler)
 
-    #loghandler = Util.sqlite_loghandler.SQLiteHandler(session)
-    #logger.addHandler(loghandler)
+        http_server = tornado.httpserver.HTTPServer(app)
 
-    __builtin__.conn = sqlite3.connect('example.db')
-    
-    logger.info("Starting on 8888...")
-    http_server.listen(8888)
+        logger.info("Starting on {0}...".format(args.port))
+        http_server.listen(args.port)
 
-    logger.info("Started. Entering ioloop...")
-    tornado.ioloop.IOLoop.instance().start()
+        logger.info("Started. Entering ioloop...")
+        tornado.ioloop.IOLoop.instance().start()
+    else:
+        print "Failed to connect to db: ", args.db
 
 if __name__ == "__main__":
     main()
-
-
