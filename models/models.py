@@ -9,7 +9,7 @@ import sqlalchemy.exc
 Base = declarative_base()
 
 
-class queries(Base, Timestamp):
+class Query(Base, Timestamp):
     __tablename__ = 'queries'
     __table_args__ = {'sqlite_autoincrement': True}
     id = Column(Integer, autoincrement=True, primary_key=True)
@@ -17,16 +17,16 @@ class queries(Base, Timestamp):
     tz = Column(String(3), nullable=False)
     qname = Column(String(256), nullable=False, index=True)
     qtype = Column(String(16), nullable=False)
-    answers = relationship("answers",
+    answers = relationship("Answer",
                            cascade="all, delete-orphan")
 
 
-class answers(Base, Timestamp):
+class Answer(Base, Timestamp):
     __tablename__ = 'answers'
     __table_args__ = {'sqlite_autoincrement': True}
     id = Column(Integer, autoincrement=True, primary_key=True)
     query_id = Column(Integer, ForeignKey('queries.id'), nullable=False)
-    query = relationship(queries, backref=backref("queries",
+    query = relationship(Query, backref=backref("queries",
                          cascade="all, delete-orphan"))
     atype = Column(String(16), nullable=False)
     answer = Column(String(256), nullable=False)
@@ -56,8 +56,9 @@ def attach(dbstr):
     try:
         engine = create_engine(dbstr, echo=False)
         # engine = create_engine('mysql+pymysql://root@localhost/pdns', echo=False)  # noqa
-        DBSession = sessionmaker(bind=engine)
+        DBSession = sessionmaker(bind=engine, autocommit=True)
         conn = DBSession()
+        conn.begin()
         Base.metadata.create_all(engine)
         conn.commit()
         return conn

@@ -4,19 +4,23 @@ __version__ = "1.0.0"
 
 import lzma
 import json
+import time
 import logging
 import argparse
+import traceback
 import tornado.web
 import tornado.escape
 import tornado.httpserver
 
-from models.models import queries, answers, attach
+from models.models import Query, Answer, attach
 import models.sqlite_loghandler
 
 LOG_FORMAT = '%(asctime)s - %(levelname)s - %(name)s[%(lineno)s] - %(message)s'
 logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT)
 logger = logging.getLogger(__name__)
-conn = None
+
+import __builtin__
+__builtin__.conn = None
 
 parser = argparse.ArgumentParser(
     description='passive dns collector')
@@ -61,6 +65,7 @@ class Incoming(BaseHandler):
     def post(self):
         response = self.ok()
         data = self.request.body
+        conn.begin()
         try:
             lz = lzma.LZMADecompressor()
             jd = lz.decompress(data)
@@ -68,24 +73,37 @@ class Incoming(BaseHandler):
             logger.info("Got post with len {0} uncompressed {1}".format(len(data), len(jd)))
             assert 'apikey' in j and j['apikey'] == args.apikey, "not authorized"
 
-            dns = j['dns']
-            Q = queries(collector = j['identity'], tz = dns['tz'], qname = dns['query'], qtype = dns['qtype'])  # noqa
-            conn.add(Q)
-            conn.commit()
-            conn.refresh(Q)
-            
-            for ans_type, ans_ttl, ans_str in dns['answers']:
-                A = answers(atype = ans_type, ttl = ans_ttl, answer = ans_str, query = Q)
-                conn.add(A)
+            txt = time.time()
+            txc = 0
 
+            for query in j['dns']:
+                Q = Query(collector = j['identity'], tz = query['tz'], qname = query['query'], qtype = query['qtype'])  # noqa
+                conn.add(Q)
+                conn.flush()
+                conn.refresh(Q)
+                txc += 1
+            
+                for ans_type, ans_ttl, ans_str in query['answers']:
+                    A = Answer(atype = ans_type, ttl = ans_ttl, answer = ans_str, query = Q)
+                    conn.add(A)
+                    txc += 1
+
+            conn.commit()
+            txdur = time.time() - txt
+            logger.info("Wrote {0} records in {1}s .. {2} rec/sec".format(txc, txdur, txc/txdur))
+             
         except AssertionError as e:
             logger.error("invalid (or no) apikey")
             response = self.nok("{0}".format(e))
+            conn.rollback()
 
         except Exception as e:
             logger.error("hmm {0}".format(e))
             print e
+            traceback.print_exc()
+            conn.rollback()
             response = self.nok("post failed")
+
         self.add_headers()
         self.write(response)
 
@@ -102,7 +120,7 @@ def make_app():
 def main():
     app = make_app()
     logger.info("Connect to DB")
-    conn = attach(args.db)
+    __builtin__.conn = attach(args.db)
     if conn is not None:
         loghandler = models.sqlite_loghandler.SQLiteHandler(conn)
         logger.addHandler(loghandler)

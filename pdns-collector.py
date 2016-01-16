@@ -43,6 +43,7 @@ pgroup_ex.add_argument('--post', '-p', type=str,
                     help='post json results to a url, requires -a')
 
 parser.add_argument('--identity', '-I', type=str,
+                    required=True,
                     help='a string to uniquely identify us')
 parser.add_argument('--apikey', '-a', type=str,
                     help='apikey to use when posting json results to a url')
@@ -155,16 +156,22 @@ class scapyProcessor:
             self.ccount += 1
             if self.ccount > self.count:
                 self.ccount = 0
-                j = json.dumps({'apikey': self.apikey, 'dns': self.data, 'identity': self.identity})
-                lz = lzma.LZMACompressor()
-                jc = lz.compress(j)
-                jc += lz.flush()
+                try:
+                    t0 = time.time()
+                    j = json.dumps({'apikey': self.apikey, 'dns': self.data, 'identity': self.identity})
+                    lz = lzma.LZMACompressor()
+                    jc = lz.compress(j)
+                    jc += lz.flush()
+                    logger.info("compression took {0}s".format(time.time()-t0))
 
-                logger.info("emit {1}b ({2}b) {0}/s".format(self.count/(time.time()-self.last_emit), len(jc), len(j)))  # noqa
-                self.last_emit = time.time()
-                self.data = []
-                self.do_post(jc)
-
+                    logger.info("emit {1}b ({2}b) {0}/s".format(self.count/(time.time()-self.last_emit), len(jc), len(j)))  # noqa
+                    self.last_emit = time.time()
+                    self.data = []
+                    self.do_post(jc)
+                except Exception as e:
+                    logger.error("Something bad happened for this batch {0}".format(e))
+                    self.data = []
+                    self.last_emit = time.time()
 
     def do_post(self, _data):
     	"""
@@ -174,11 +181,17 @@ class scapyProcessor:
         headers = {'Content-Type': 'application/json'}
 
         try:
+            t0 = time.time()
             req = urllib2.Request(base, data=_data, headers=headers)
-    	    _rsp = urllib2.urlopen(req, timeout=2)
+    	    _rsp = urllib2.urlopen(req, timeout=15)
             body = _rsp.read()
             rsp = json.loads(body)
+            t1 = time.time() - t0
+            logger.info("Records posted in {0}s".format(t1))
             assert rsp['_status'] == 'OK', "{0} failed: {1}".format(base, rsp['_message'])
+
+        except urllib2.URLError as e:
+            logger.error("Server is down: {0}".format(e))
 
         except urllib2.HTTPError as e:
             logger.error("Server said {0}. Discarding this batch of records.".format(e))
