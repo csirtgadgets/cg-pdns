@@ -177,12 +177,12 @@ class scapyProcessor:
     	"""
     	TODO: thread so this doesn't stall the collector
     	"""
-        base = "http://localhost:8888/pdns/post"
+        #base = "http://localhost:8888/pdns/post"
         headers = {'Content-Type': 'application/json'}
 
         try:
             t0 = time.time()
-            req = urllib2.Request(base, data=_data, headers=headers)
+            req = urllib2.Request(self.url, data=_data, headers=headers)
     	    _rsp = urllib2.urlopen(req, timeout=15)
             body = _rsp.read()
             rsp = json.loads(body)
