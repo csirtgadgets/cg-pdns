@@ -107,7 +107,7 @@ class pcapProcessor:
             query = query[:-1]
         return query.lower()
 
-class scapyProcessor:
+class networkProcessor:
     def __init__(self, identity, apikey, url, count):
         self.data = []
         self.localtz = reference.LocalTimezone()
@@ -177,7 +177,6 @@ class scapyProcessor:
     	"""
     	TODO: thread so this doesn't stall the collector
     	"""
-        #base = "http://localhost:8888/pdns/post"
         headers = {'Content-Type': 'application/json'}
 
         try:
@@ -213,8 +212,8 @@ def main():
         f.close()
     elif args.post:
         if args.apikey:
-            s = scapyProcessor(args.identity, args.apikey, args.post, args.count or 100)
-            sniff(iface=args.iface, filter="udp port 53 and ( udp[10] & 0x04 != 0 )", prn=s)
+            s = networkProcessor(args.identity, args.apikey, args.post, args.count or 100)
+            sniff(iface=args.iface, store=0, filter="udp port 53 and ( udp[10] & 0x04 != 0 )", prn=s)
         else:
             print "--apikey required with --post"
 

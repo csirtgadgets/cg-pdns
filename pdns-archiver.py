@@ -63,6 +63,9 @@ class Incoming(BaseHandler):
         self.write(self.nok("go away"))
 
     def post(self):
+        def ts2str(ts):
+            return datetime.datetime.fromtimestamp(d).strftime("%Y-%m-%dT%H:%M:%S")
+
         response = self.ok()
         data = self.request.body
         conn.begin()
@@ -77,14 +80,24 @@ class Incoming(BaseHandler):
             txc = 0
 
             for query in j['dns']:
-                Q = Query(collector = j['identity'], tz = query['tz'], qname = query['query'], qtype = query['qtype'])  # noqa
+                Q = Query(collector = j['identity'],
+                          tz = query['tz'],
+                          created = ts2str(query['ts']),
+                          updated = ts2str(query['ts']),
+                          qname = query['query'],
+                          qtype = query['qtype'])
                 conn.add(Q)
                 conn.flush()
                 conn.refresh(Q)
                 txc += 1
             
                 for ans_type, ans_ttl, ans_str in query['answers']:
-                    A = Answer(atype = ans_type, ttl = ans_ttl, answer = ans_str, query = Q)
+                    A = Answer(atype = ans_type,
+                               ttl = ans_ttl,
+                               answer = ans_str,
+                               query = Q,
+                               created = ts2str(query['ts']),
+                               updated = ts2str(query['ts']))
                     conn.add(A)
                     txc += 1
 
