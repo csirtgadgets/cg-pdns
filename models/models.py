@@ -9,27 +9,29 @@ import sqlalchemy.exc
 Base = declarative_base()
 
 
-class Query(Base, Timestamp):
+class Query(Base):
     __tablename__ = 'queries'
     __table_args__ = {'sqlite_autoincrement': True}
+    insertedat = Column(DateTime, index=True)
     id = Column(Integer, autoincrement=True, primary_key=True)
-    collector = Column(String(64), nullable=False)
+    collector = Column(String(64), nullable=False, index=True)
     tz = Column(String(3), nullable=False)
     qname = Column(String(256), nullable=False, index=True)
-    qtype = Column(String(16), nullable=False)
+    qtype = Column(String(16), nullable=False, index=True)
     answers = relationship("Answer",
                            cascade="all, delete-orphan")
 
 
-class Answer(Base, Timestamp):
+class Answer(Base):
     __tablename__ = 'answers'
     __table_args__ = {'sqlite_autoincrement': True}
     id = Column(Integer, autoincrement=True, primary_key=True)
-    query_id = Column(Integer, ForeignKey('queries.id'), nullable=False)
+    query_id = Column(Integer, ForeignKey('queries.id'),
+                      index=True, nullable=False)
     query = relationship(Query, backref=backref("queries",
                          cascade="all, delete-orphan"))
-    atype = Column(String(16), nullable=False)
-    answer = Column(String(256), nullable=False)
+    atype = Column(String(16), index=True, nullable=False)
+    answer = Column(String(256), index=True, nullable=False)
     ttl = Column(Integer, nullable=False)
 
 
@@ -61,7 +63,7 @@ def attach(dbstr):
         conn.begin()
         Base.metadata.create_all(engine)
         conn.commit()
-        return conn
+        return conn, engine
 
     except sqlalchemy.exc.OperationalError as e:
         print "Failed to connect to {0} :: {1}".format(dbstr, e)

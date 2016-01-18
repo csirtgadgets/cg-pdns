@@ -2,11 +2,12 @@
 
 __version__ = "1.0.0"
 
-import lzma
+import backports.lzma as lzma
 import json
 import time
 import logging
 import argparse
+import datetime
 import traceback
 import tornado.web
 import tornado.escape
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 import __builtin__
 __builtin__.conn = None
+__builtin__.engine = None
 
 parser = argparse.ArgumentParser(
     description='passive dns collector')
@@ -57,14 +59,14 @@ class VersionHandler(BaseHandler):
         self.write(response)
 
 
-class Incoming(BaseHandler):
+class Incoming_ORM(BaseHandler):
     def get(self):
         self.add_headers(status=404)
         self.write(self.nok("go away"))
 
     def post(self):
         def ts2str(ts):
-            return datetime.datetime.fromtimestamp(d).strftime("%Y-%m-%dT%H:%M:%S")
+            return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%dT%H:%M:%S")
 
         response = self.ok()
         data = self.request.body
@@ -121,11 +123,77 @@ class Incoming(BaseHandler):
         self.write(response)
 
 
+class Incoming_Core(BaseHandler):
+    def get(self):
+        self.add_headers(status=404)
+        self.write(self.nok("go away"))
+
+    def post(self):
+        def ts2str(ts):
+            return datetime.datetime.fromtimestamp(ts) #.strftime("%Y-%m-%dT%H:%M:%S")
+
+        response = self.ok()
+        data = self.request.body
+        try:
+            t0 = time.time()
+            lz = lzma.LZMADecompressor()
+            jd = lz.decompress(data)
+            j = json.loads(jd)
+            logger.info("Got post with len {0} uncompressed {1} in {2}s".format(len(data), len(jd), time.time()-t0))  # noqa
+            assert 'apikey' in j and j['apikey'] == args.apikey, "not authorized"
+
+            txt = time.time()
+            txc = 0
+
+            con = engine.engine.connect()
+            for query in j['dns']:
+                ts_str = ts2str(query['ts'])
+                res = con.execute(Query.__table__.insert(),
+                             {"collector": j['identity'],
+                             "tz": query['tz'],
+                             "insertedat": ts_str,
+                             "qname": query['query'],
+                             "qtype": query['qtype']})
+
+                qid = res.inserted_primary_key[0]
+                txc += 1
+
+                ans_list = []
+
+                for ans_type, ans_ttl, ans_str in query['answers']:
+                    ans_list.append({"atype": ans_type,
+                                     "ttl": ans_ttl,
+                                     "answer": ans_str,
+                                     "query_id": qid,
+                                     "insertedat": ts_str})
+                if len(ans_list) > 0:
+                    con.execute(Answer.__table__.insert(), ans_list)
+                    txc += len(ans_list)
+
+            txdur = time.time() - txt
+            logger.info("Wrote {0} records in {1}s .. {2} rec/sec".format(txc, txdur, txc/txdur))
+             
+        except AssertionError as e:
+            logger.error("invalid (or no) apikey")
+            response = self.nok("{0}".format(e))
+            #conn.rollback()
+
+        except Exception as e:
+            logger.error("hmm {0}".format(e))
+            print e
+            traceback.print_exc()
+            #conn.rollback()
+            response = self.nok("post failed")
+
+        self.add_headers()
+        self.write(response)
+
+
 def make_app():
     settings = {}
     application = tornado.web.Application([
         (r"/pdns/version", VersionHandler),
-        (r"/pdns/post", Incoming),
+        (r"/pdns/post", Incoming_Core),
         ], **settings)
     return application
 
@@ -133,7 +201,7 @@ def make_app():
 def main():
     app = make_app()
     logger.info("Connect to DB")
-    __builtin__.conn = attach(args.db)
+    __builtin__.conn, __builtin__.engine = attach(args.db)
     if conn is not None:
         loghandler = models.sqlite_loghandler.SQLiteHandler(conn)
         logger.addHandler(loghandler)

@@ -164,7 +164,7 @@ class networkProcessor:
                     jc += lz.flush()
                     logger.info("compression took {0}s".format(time.time()-t0))
 
-                    logger.info("emit {1}b ({2}b) {0}/s".format(self.count/(time.time()-self.last_emit), len(jc), len(j)))  # noqa
+                    logger.info("emit {1}b ({2}b) after {3}s {0}/s".format(self.count/(time.time()-self.last_emit), len(jc), len(j), time.time()-self.last_emit))  # noqa
                     self.last_emit = time.time()
                     self.data = []
                     self.do_post(jc)
