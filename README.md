@@ -4,10 +4,10 @@ Tool for distributed passive DNS collection
 
 ### Motivation
 
-1. Single script
-2. Minimal library reliance (for the collector)
-3. Central reporting
-4. Compression
+1. Single script (collector)
+2. Minimal library reliance (for the collector to make it easy to install on older systems)
+3. Central reporting (archiver)
+4. Compression (collector -> archiver)
 
 ### Usage
 
