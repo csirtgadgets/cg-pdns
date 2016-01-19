@@ -17,15 +17,16 @@ Tool for distributed passive DNS collection
 
 ### Fiddling
 
-```
- sql> select * from queries q, answers a where q.id = a.query_id and q.id = 3;
- created|updated|id|collector|tz|qname|qtype|created|updated|id|query_id|atype|answer|ttl
- 2016-01-16 04:59:12.785510|2016-01-16 04:59:12.788643|3|foobar|EST|sis001.sextop1.info.|A|2016-01-16 04:59:12.789315|2016-01-16 04:59:12.789321|2|3|CNAME|ns1.qqsexygirl.com.|600
- 2016-01-16 04:59:12.785510|2016-01-16 04:59:12.788643|3|foobar|EST|sis001.sextop1.info.|A|2016-01-16 04:59:12.789476|2016-01-16 04:59:12.789482|3|3|NS|f1g1ns2.dnspod.net.|86400
- 2016-01-16 04:59:12.785510|2016-01-16 04:59:12.788643|3|foobar|EST|sis001.sextop1.info.|A|2016-01-16 04:59:12.789610|2016-01-16 04:59:12.789614|4|3|NS|f1g1ns1.dnspod.net.|86400
+Top 10 queries within past 5 mins.
 
- sql> select * from queries where qname like '%google.com.';
- [many matching queries]
+```
+ sql> select count(*) as count,qname as query from queries where insertedat >= datetime('now', '-5 minutes') group by query order by count desc limit 10;
+```
+
+See all the answers for a particular query in the past hour.
+
+```
+ sql> select q.qname,q.qtype,a.atype,a.answer,ttl from queries q, answers a where q.id = a.query_id and q.qname = 'www.google.com.' and q.insertedat >= datetime('now','-1 hour') group by a.answer;
 ```
 
 ### Tables
