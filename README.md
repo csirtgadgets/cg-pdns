@@ -62,25 +62,15 @@ Tool for distributed passive DNS collection
 
 instance    | new db   | 25M row db 
 ------------|----------|------------
-t2.small    | 7.0k/sec | 2.5k/sec     
-sqlite      |          |            
-------------|----------|------------
-m4.large    | 7.5k/sec |
-sqlite      |          |
-------------|----------|------------
-t2.small    | 1.5k/sec | 
-db.t2.small |          |
-mysql/mag   |          |
-------------|----------|------------
-t2.small    |    k/sec | 
-db.t2.small |          |
-mysql/ssd   |          |
-------------|----------|------------
-t2.small    | 1.9k/sec | 
-db.m4.large |          |
-mysql/mag   |          |
-------------|----------|------------
-m4.large    | 1.8k/sec | 
-db.m4.large |          |
-mysql/mag   |          |
+t2.small <sup>1</sup>   | 7.0k/sec | 2.5k/sec     
+m4.large <sup>1</sup>   | 7.5k/sec |
+t2.small / db.t2.small <sup>2</sup>   | 1.5k/sec | 
+t2.small / db.t2.small <sup>3</sup>   | 1.0k/sec | 
+t2.small / db.m4.large <sup>2</sup>   | 1.9k/sec | 
+m4.large / db.m4.large <sup>2</sup>   | 1.8k/sec | 
+
+
+1. local sqlite
+2. mysql/magnetic
+3. mysql/ssd
 
