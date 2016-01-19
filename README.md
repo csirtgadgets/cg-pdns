@@ -20,13 +20,18 @@ Tool for distributed passive DNS collection
 Top 10 queries within past 5 mins.
 
 ```
- sql> select count(*) as count,qname as query from queries where insertedat >= datetime('now', '-5 minutes') group by query order by count desc limit 10;
+ sql> select count(*) as count,qname as query 
+      from queries where insertedat >= datetime('now', '-5 minutes') 
+      group by query order by count desc limit 10;
 ```
 
 See all the answers for a particular query in the past hour.
 
 ```
- sql> select q.qname,q.qtype,a.atype,a.answer,ttl from queries q, answers a where q.id = a.query_id and q.qname = 'www.google.com.' and q.insertedat >= datetime('now','-1 hour') group by a.answer;
+ sql> select q.qname,q.qtype,a.atype,a.answer,ttl 
+      from queries q, answers a 
+      where q.id = a.query_id and q.qname = 'www.google.com.' and q.insertedat >= datetime('now','-1 hour') 
+      group by a.answer;
 ```
 
 ### Tables
