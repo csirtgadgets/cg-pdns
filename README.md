@@ -55,13 +55,13 @@ See all the answers for a particular query in the past hour.
         
 ```
 
-# SQLite Performance Refs
+## SQLite Performance Refs
 
  http://docs.sqlalchemy.org/en/latest/faq/performance.html#i-m-inserting-400-000-rows-with-the-orm-and-it-s-really-slow
 
  http://stackoverflow.com/questions/15778716/sqlite-insert-speed-slows-as-number-of-records-increases-due-to-an-index
 
-# Archiver Reference Numbers
+## Archiver Reference Numbers
 
 25M row count is sum of the two tables. the EC2 T2 instance had a full supply of credits, so it could
 burst to the maximum allowed. inserts arrived in batches of around 14k (900 KB). archiver times how
