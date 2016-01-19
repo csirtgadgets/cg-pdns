@@ -32,17 +32,14 @@ Tool for distributed passive DNS collection
 
 ```
  queries:
-        created DATETIME NOT NULL, 
-        updated DATETIME NOT NULL, 
+        insertedat DATETIME NOT NULL, 
         id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, 
         collector VARCHAR(64) NOT NULL, 
         tz VARCHAR(3) NOT NULL, 
         qname VARCHAR(256) NOT NULL, 
         qtype VARCHAR(16) NOT NULL
 
- answers:
-        created DATETIME NOT NULL, 
-        updated DATETIME NOT NULL, 
+ answers: 
         id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, 
         query_id INTEGER NOT NULL, 
         atype VARCHAR(16) NOT NULL, 
