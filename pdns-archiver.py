@@ -213,7 +213,7 @@ def make_app():
     settings = {}
     application = tornado.web.Application([
         (r"/pdns/version", VersionHandler),
-        (r"/pdns/stats", StatsHandler),
+        (r"/pdns/stats/(\S+)", StatsHandler),
         (r"/pdns/post", Incoming_Core),
         ], **settings)
     return application
