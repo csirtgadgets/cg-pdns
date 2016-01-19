@@ -15,6 +15,7 @@ import tornado.httpserver
 
 from models.models import Query, Answer, attach
 import models.sqlite_loghandler
+from sqlalchemy.sql import text
 
 LOG_FORMAT = '%(asctime)s - %(levelname)s - %(name)s[%(lineno)s] - %(message)s'
 logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT)
@@ -170,26 +171,49 @@ class Incoming_Core(BaseHandler):
                 txdur = time.time() - txt
                 logger.info("Wrote {0} records in {1}s .. {2} rec/sec".format(txc, txdur, txc/txdur))
              
-        except AssertionError as e:
-            logger.error("invalid (or no) apikey")
-            response = self.nok("{0}".format(e))
-            con.rollback()
+            except AssertionError as e:
+                logger.error("invalid (or no) apikey")
+                response = self.nok("{0}".format(e))
+                con.rollback()
 
-        except Exception as e:
-            logger.error("hmm {0}".format(e))
-            print e
-            traceback.print_exc()
-            con.rollback()
-            response = self.nok("post failed")
+            except Exception as e:
+                logger.error("hmm {0}".format(e))
+                traceback.print_exc()
+                con.rollback()
+                response = self.nok("post failed")
 
         self.add_headers()
         self.write(response)
 
 
+class StatsHandler(BaseHandler):
+    def get(self, apikey):
+        def do_select(_s):
+            with engine.connect() as conn:
+                try:
+                    s = text(_s)
+                    r = conn.execute(s).fetchone()
+                    return r[0]
+                except:
+                    return 0
+
+        response = self.nok("not authorized")
+
+        if apikey is not None and apikey == args.apikey:
+            response = self.ok()
+            q_last_hour = do_select("select count(*) from queries where insertedat >= datetime('now', '-1 hour');")
+            col_last_hour = do_select("select count(distinct(collector)) from queries where insertedat >= datetime('now', '-1 hour');")
+            response.update({'qrec_last_hour': q_last_hour,
+                             'collectors_reporting_last_hour': col_last_hour})
+
+        self.add_headers()
+        self.write(response)
+
 def make_app():
     settings = {}
     application = tornado.web.Application([
         (r"/pdns/version", VersionHandler),
+        (r"/pdns/stats", StatsHandler),
         (r"/pdns/post", Incoming_Core),
         ], **settings)
     return application
