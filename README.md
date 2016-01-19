@@ -48,3 +48,39 @@ Tool for distributed passive DNS collection
         FOREIGN KEY(query_id) REFERENCES queries (id)
         
 ```
+
+# SQLite Performance Refs
+
+ http://docs.sqlalchemy.org/en/latest/faq/performance.html#i-m-inserting-400-000-rows-with-the-orm-and-it-s-really-slow
+
+ http://stackoverflow.com/questions/15778716/sqlite-insert-speed-slows-as-number-of-records-increases-due-to-an-index
+
+# Archiver Reference Numbers
+
+25M row count is sum of the two tables.
+
+
+instance    | new db   | 25M row db 
+------------|----------|------------
+t2.small    | 7.0k/sec | 2.5k/sec     
+sqlite      |          |            
+------------|----------|------------
+m4.large    | 7.5k/sec |
+sqlite      |          |
+------------|----------|------------
+t2.small    | 1.5k/sec | 
+db.t2.small |          |
+mysql/mag   |          |
+------------|----------|------------
+t2.small    |    k/sec | 
+db.t2.small |          |
+mysql/ssd   |          |
+------------|----------|------------
+t2.small    | 1.9k/sec | 
+db.m4.large |          |
+mysql/mag   |          |
+------------|----------|------------
+m4.large    | 1.8k/sec | 
+db.m4.large |          |
+mysql/mag   |          |
+
