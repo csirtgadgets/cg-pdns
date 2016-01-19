@@ -57,20 +57,26 @@ Tool for distributed passive DNS collection
 
 # Archiver Reference Numbers
 
-25M row count is sum of the two tables.
+25M row count is sum of the two tables. the EC2 T2 instance had a full supply of credits, so it could
+burst to the maximum allowed. inserts arrived in batches of around 14k (900 KB). archiver times how
+long it takes to insert each batch and prints to output (also records to Log table). average results
+shown below as inserts-per-second. in all cases, db is single instance not clustered.
 
 
-instance    | new db   | 25M row db 
-------------|----------|------------
-t2.small <sup>1</sup>   | 7.0k/sec | 2.5k/sec     
-m4.large <sup>1</sup>   | 7.5k/sec |
+instance                              | new db   | 25M row db 
+--------------------------------------|----------|------------
+t2.small <sup>1</sup>                 | 7.0k/sec | 4.5k/sec     
+t2.small <sup>5</sup>                 | 3.1k/sec |     
+m4.large <sup>1</sup>                 | 7.5k/sec | 3.0k/sec
 t2.small / db.t2.small <sup>2</sup>   | 1.5k/sec | 
 t2.small / db.t2.small <sup>3</sup>   | 1.0k/sec | 
 t2.small / db.m4.large <sup>2</sup>   | 1.9k/sec | 
 m4.large / db.m4.large <sup>2</sup>   | 1.8k/sec | 
-
+t2.small / db.r3.large <sup>4</sup>   | 0.9/sec  | 
 
 1. local sqlite
 2. mysql/magnetic
-3. mysql/ssd
+3. mysql/ssd (gen)
+4. aurora
+5. local mysql
 
