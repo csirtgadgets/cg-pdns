@@ -35,6 +35,7 @@ parser.add_argument('--apikey', '-a', type=str, required=True,
 parser.add_argument('--db', '-d', type=str,
                     default="sqlite:////data/pdns.db",
                     help='db connect string, default sqlite:////data/pdns.db')
+                    # mysql+pymysql://root@localhost/pdns
 args = parser.parse_args()
 
 
@@ -65,8 +66,8 @@ class Incoming_ORM(BaseHandler):
         self.write(self.nok("go away"))
 
     def post(self):
-        def ts2str(ts):
-            return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%dT%H:%M:%S")
+        def ts2dt(ts):
+            return datetime.datetime.fromtimestamp(ts)
 
         response = self.ok()
         data = self.request.body
@@ -84,8 +85,7 @@ class Incoming_ORM(BaseHandler):
             for query in j['dns']:
                 Q = Query(collector = j['identity'],
                           tz = query['tz'],
-                          created = ts2str(query['ts']),
-                          updated = ts2str(query['ts']),
+                          insertedat = ts2dt(query['ts']),
                           qname = query['query'],
                           qtype = query['qtype'])
                 conn.add(Q)
@@ -97,9 +97,7 @@ class Incoming_ORM(BaseHandler):
                     A = Answer(atype = ans_type,
                                ttl = ans_ttl,
                                answer = ans_str,
-                               query = Q,
-                               created = ts2str(query['ts']),
-                               updated = ts2str(query['ts']))
+                               query = Q)
                     conn.add(A)
                     txc += 1
 
@@ -129,60 +127,59 @@ class Incoming_Core(BaseHandler):
         self.write(self.nok("go away"))
 
     def post(self):
-        def ts2str(ts):
-            return datetime.datetime.fromtimestamp(ts) #.strftime("%Y-%m-%dT%H:%M:%S")
+        def ts2dt(ts):
+            return datetime.datetime.fromtimestamp(ts)
 
         response = self.ok()
         data = self.request.body
-        try:
-            t0 = time.time()
-            lz = lzma.LZMADecompressor()
-            jd = lz.decompress(data)
-            j = json.loads(jd)
-            logger.info("Got post with len {0} uncompressed {1} in {2}s".format(len(data), len(jd), time.time()-t0))  # noqa
-            assert 'apikey' in j and j['apikey'] == args.apikey, "not authorized"
+        with engine.begin() as con:
+            try:
+                t0 = time.time()
+                lz = lzma.LZMADecompressor()
+                jd = lz.decompress(data)
+                j = json.loads(jd)
+                logger.info("Got post with len {0} uncompressed {1} in {2}s".format(len(data), len(jd), time.time()-t0))  # noqa
+                assert 'apikey' in j and j['apikey'] == args.apikey, "not authorized"
 
-            txt = time.time()
-            txc = 0
+                txt = time.time()
+                txc = 0
 
-            con = engine.engine.connect()
-            for query in j['dns']:
-                ts_str = ts2str(query['ts'])
-                res = con.execute(Query.__table__.insert(),
+                for query in j['dns']:
+                    ts_str = ts2dt(query['ts'])
+                    res = con.execute(Query.__table__.insert(),
                              {"collector": j['identity'],
                              "tz": query['tz'],
                              "insertedat": ts_str,
                              "qname": query['query'],
                              "qtype": query['qtype']})
 
-                qid = res.inserted_primary_key[0]
-                txc += 1
+                    qid = res.inserted_primary_key[0]
+                    txc += 1
 
-                ans_list = []
+                    ans_list = []
 
-                for ans_type, ans_ttl, ans_str in query['answers']:
-                    ans_list.append({"atype": ans_type,
-                                     "ttl": ans_ttl,
-                                     "answer": ans_str,
-                                     "query_id": qid,
-                                     "insertedat": ts_str})
-                if len(ans_list) > 0:
-                    con.execute(Answer.__table__.insert(), ans_list)
-                    txc += len(ans_list)
+                    for ans_type, ans_ttl, ans_str in query['answers']:
+                        ans_list.append({"atype": ans_type,
+                                         "ttl": ans_ttl,
+                                         "answer": ans_str,
+                                         "query_id": qid})
+                    if len(ans_list) > 0:
+                        con.execute(Answer.__table__.insert(), ans_list)
+                        txc += len(ans_list)
 
-            txdur = time.time() - txt
-            logger.info("Wrote {0} records in {1}s .. {2} rec/sec".format(txc, txdur, txc/txdur))
+                txdur = time.time() - txt
+                logger.info("Wrote {0} records in {1}s .. {2} rec/sec".format(txc, txdur, txc/txdur))
              
         except AssertionError as e:
             logger.error("invalid (or no) apikey")
             response = self.nok("{0}".format(e))
-            #conn.rollback()
+            con.rollback()
 
         except Exception as e:
             logger.error("hmm {0}".format(e))
             print e
             traceback.print_exc()
-            #conn.rollback()
+            con.rollback()
             response = self.nok("post failed")
 
         self.add_headers()

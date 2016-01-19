@@ -57,12 +57,9 @@ class Log(Base, Timestamp):
 def attach(dbstr):
     try:
         engine = create_engine(dbstr, echo=False)
-        # engine = create_engine('mysql+pymysql://root@localhost/pdns', echo=False)  # noqa
-        DBSession = sessionmaker(bind=engine, autocommit=True)
+        DBSession = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
         conn = DBSession()
-        conn.begin()
         Base.metadata.create_all(engine)
-        conn.commit()
         return conn, engine
 
     except sqlalchemy.exc.OperationalError as e:

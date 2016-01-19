@@ -63,7 +63,7 @@ from scapy.all import *
 def date(d):
     return datetime.datetime.fromtimestamp(d).strftime("%Y-%m-%dT%H:%M:%S")
 
-class pcapProcessor:
+class fileProcessor:
     """
     To be replaced with scapy...
     """
@@ -204,7 +204,7 @@ class networkProcessor:
 
 def main():
     if args.file is not None:
-        s = pcapProcessor()
+        s = fileProcessor()
         pcap = pcapy.open_offline(args.file)
         pcap.loop(0, s)
         f = open(args.file, "w")
