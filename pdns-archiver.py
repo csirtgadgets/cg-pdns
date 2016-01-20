@@ -141,7 +141,7 @@ class Incoming_Core(BaseHandler):
                 jd = lz.decompress(data)
                 j = json.loads(jd)
                 assert 'apikey' in j and j['apikey'] == args.apikey, "not authorized"
-                logger.info("Got post from {3} with len {0} (uncompressed {1}) in {2}s".format(j['identity'], len(data), len(jd), time.time()-t0))  # noqa
+                logger.info("Got post from {0} with len {1} (uncompressed {2}) in {3}s".format(j['identity'], len(data), len(jd), time.time()-t0))  # noqa
 
                 txt = time.time()
                 txc = 0
