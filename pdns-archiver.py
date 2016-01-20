@@ -135,12 +135,12 @@ class Incoming_Core(BaseHandler):
         data = self.request.body
         with engine.begin() as con:
             try:
-                assert 'apikey' in j and j['apikey'] == args.apikey, "not authorized"
 
                 t0 = time.time()
                 lz = lzma.LZMADecompressor()
                 jd = lz.decompress(data)
                 j = json.loads(jd)
+                assert 'apikey' in j and j['apikey'] == args.apikey, "not authorized"
                 logger.info("Got post from {3} with len {0} (uncompressed {1}) in {2}s".format(j['identity'], len(data), len(jd), time.time()-t0))  # noqa
 
                 txt = time.time()
@@ -175,12 +175,10 @@ class Incoming_Core(BaseHandler):
             except AssertionError as e:
                 logger.error("invalid (or no) apikey")
                 response = self.nok("{0}".format(e))
-                con.rollback()
 
             except Exception as e:
                 logger.error("hmm {0}".format(e))
                 traceback.print_exc()
-                con.rollback()
                 response = self.nok("post failed")
 
         self.add_headers()
